@@ -17,13 +17,8 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@babel/parser@^7.29.0",
-        "npm:@babel/traverse@^7.29.0",
         "npm:esbuild@~0.27.2",
-        "npm:glob@13",
-        "npm:recheck@^4.5.0",
-        "npm:tree-sitter-python@0.25",
-        "npm:tree-sitter@0.25"
+        "npm:recheck@^4.5.0"
       ]
     }
   }

@@ -1,4 +1,5 @@
-const { recheck } = await import("./recheck.bundle.js");
+const bundlePath = Deno.args[0];
+const { recheck } = await import(bundlePath);
 
 function main(content) {
     const regexesWithPaths = JSON.parse(content);
