@@ -14,6 +14,9 @@ redos-linter = "redos_linter:main"
 requires = ["uv_build"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+source-include = ["src/**"]
+
 [dependency-groups]
 dev = ["mypy", "ruff", "pytest", "pytest-mock", "pytest-cov"]
 
