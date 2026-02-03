@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 try:
     import deno  # type: ignore[import-untyped]
 except ImportError:
@@ -39,9 +40,7 @@ def get_deno_path() -> str:
         return str(deno_path)
 
     if deno is None:
-        raise FileNotFoundError(
-            "Could not find the deno executable: deno package not installed"
-        )
+        raise FileNotFoundError("Could not find the deno executable: deno package not installed")
 
     deno_dir = Path(deno.__file__).parent
     deno_path = deno_dir / "bin" / "deno"
