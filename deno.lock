@@ -1,0 +1,30 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@pkgr/core@^0.1.0?target=denonext": "https://esm.sh/@pkgr/core@0.1.2?target=denonext",
+    "https://esm.sh/recheck": "https://esm.sh/recheck@4.5.0",
+    "https://esm.sh/tslib@^2.6.2?target=denonext": "https://esm.sh/tslib@2.8.1?target=denonext"
+  },
+  "remote": {
+    "https://esm.sh/@pkgr/core@0.1.2/denonext/core.mjs": "2005b93801325e72ebb2337c628c60ae23c3db41ad8b1cfa495b16902c7d02cb",
+    "https://esm.sh/@pkgr/core@0.1.2?target=denonext": "52082e1489aa65306b5006c2e86a05ea27aca64616632c8e0f781a9f994b3ff4",
+    "https://esm.sh/recheck@4.5.0": "fbe0fab8a34abe717a4db399b43870d5fe5ce7c053218246891c6bb8a6ce5246",
+    "https://esm.sh/recheck@4.5.0/denonext/recheck.mjs": "eff887ed95eceea189cf974f7fdda582d5fa0f3cd12c75a97265aca25527f567",
+    "https://esm.sh/synckit@0.9.2/denonext/synckit.mjs": "aee911d7a6fd125ab2973af14acedae6f857347cf4613ada139435a7d2540f39",
+    "https://esm.sh/tslib@2.8.1/denonext/tslib.mjs": "c38da5dd6da6281964435002ce204cd586634fe3bdfb24a0ee116f48cf3292e9",
+    "https://esm.sh/tslib@2.8.1?target=denonext": "a89cbf082a0ad54e87ea85d75e6d5492b3e2ff0c5de9e3e478206a015b3f3992"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@babel/parser@^7.29.0",
+        "npm:@babel/traverse@^7.29.0",
+        "npm:esbuild@~0.27.2",
+        "npm:glob@13",
+        "npm:recheck@^4.5.0",
+        "npm:tree-sitter-python@0.25",
+        "npm:tree-sitter@0.25"
+      ]
+    }
+  }
+}
