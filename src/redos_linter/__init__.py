@@ -1,10 +1,15 @@
 import argparse
 import ast
-import glob
 import json
 import os
 import subprocess
 import sys
+from pathlib import Path
+
+try:
+    import deno  # type: ignore[import-untyped]
+except ImportError:
+    deno = None
 
 
 # ANSI color codes for better output
@@ -21,24 +26,27 @@ class Colors:
     END = "\033[0m"
 
 
-def use_colors():
+def use_colors() -> bool:
     """Check if colors should be used (TTY and not disabled by environment)."""
     return sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
 
 
-def get_deno_path():
+def get_deno_path() -> str:
     python_executable = sys.executable
-    bin_dir = os.path.dirname(python_executable)
-    deno_path = os.path.join(bin_dir, "deno")
-    if os.path.exists(deno_path):
-        return deno_path
+    bin_dir = Path(python_executable).parent
+    deno_path = bin_dir / "deno"
+    if deno_path.exists():
+        return str(deno_path)
 
-    import deno
+    if deno is None:
+        raise FileNotFoundError(
+            "Could not find the deno executable: deno package not installed"
+        )
 
-    deno_dir = os.path.dirname(deno.__file__)
-    deno_path = os.path.join(deno_dir, "bin", "deno")
-    if os.path.exists(deno_path):
-        return deno_path
+    deno_dir = Path(deno.__file__).parent
+    deno_path = deno_dir / "bin" / "deno"
+    if deno_path.exists():
+        return str(deno_path)
 
     raise FileNotFoundError("Could not find the deno executable.")
 
@@ -47,20 +55,41 @@ class RegexExtractor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.regexes = []
 
-    def visit_Call(self, node) -> None:
+    def visit_Call(self, node: ast.Call) -> None:
         if (
-            isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "re"
-            and node.func.attr
-            in ("compile", "search", "match", "fullmatch", "split", "findall", "finditer", "sub", "subn")
-        ) and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
-            self.regexes.append({"regex": node.args[0].value, "line": node.lineno, "col": node.col_offset})
+            (
+                isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "re"
+                and node.func.attr
+                in (
+                    "compile",
+                    "search",
+                    "match",
+                    "fullmatch",
+                    "split",
+                    "findall",
+                    "finditer",
+                    "sub",
+                    "subn",
+                )
+            )
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            self.regexes.append(
+                {
+                    "regex": node.args[0].value,
+                    "line": node.lineno,
+                    "col": node.col_offset,
+                }
+            )
         self.generic_visit(node)
 
 
-def extract_regexes_from_file(filepath):
-    with open(filepath) as f:
+def extract_regexes_from_file(filepath: str) -> list[dict]:
+    with Path(filepath).open() as f:
         code = f.read()
     tree = ast.parse(code, filename=filepath)
     extractor = RegexExtractor()
@@ -73,7 +102,7 @@ def extract_regexes_from_file(filepath):
     return extractor.regexes
 
 
-def get_source_context(lines, line_num, context=2):
+def get_source_context(lines: list[str], line_num: int, context: int = 2) -> list[str]:
     """Get source lines with context (before and after the target line)."""
     start = max(0, line_num - context - 1)  # -1 because line_num is 1-indexed
     end = min(len(lines), line_num + context)
@@ -86,36 +115,99 @@ def get_source_context(lines, line_num, context=2):
     return context_lines
 
 
+def collect_files(paths: list[str]) -> list[str]:
+    """Collect Python files from the given paths."""
+    files_to_check = []
+    for p in paths:
+        path = Path(p)
+        if path.is_dir():
+            files_to_check.extend(str(f) for f in path.rglob("*.py"))
+        else:
+            files_to_check.append(p)
+    return [f for f in files_to_check if ".venv" not in f and "node_modules" not in f]
+
+
+def collect_all_regexes(files: list[str]) -> list[dict]:
+    """Extract all regexes from the given files."""
+    regexes_with_paths = []
+    for file_path in files:
+        regexes = extract_regexes_from_file(file_path)
+        regexes_with_paths.extend(
+            {
+                "regex": regex_info["regex"],
+                "filePath": file_path,
+                "line": regex_info["line"],
+                "col": regex_info["col"],
+                "source_lines": regex_info["source_lines"],
+            }
+            for regex_info in regexes
+        )
+    return regexes_with_paths
+
+
+def check_regexes_with_deno(regexes: list[dict]) -> list[dict] | None:
+    """Check regexes for vulnerabilities using Deno."""
+    deno_path = get_deno_path()
+    checker_path = Path(__file__).parent / "checker.js"
+    bundle_path = Path(__file__).parent / "recheck.bundle.js"
+
+    env = os.environ.copy()
+    env["RECHECK_BACKEND"] = "pure"
+
+    process = subprocess.run(
+        [deno_path, "run", "--allow-read", str(checker_path), str(bundle_path)],
+        input=json.dumps(regexes).encode("utf-8"),
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    if process.stderr:
+        return None
+
+    output = process.stdout.decode("utf-8")
+    if not output:
+        return None
+
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError:
+        return None
+
+
+def display_results(results: list[dict]) -> None:
+    """Display the check results."""
+    vulnerable_count = sum(1 for r in results if r["status"] == "vulnerable")
+
+    (Colors.RED if vulnerable_count > 0 else Colors.GREEN) if use_colors() else ""
+
+    for result in results:
+        if result["status"] == "vulnerable":
+            if use_colors():
+                if "sourceLines" in result:
+                    for _line in result["sourceLines"]:
+                        pass
+            elif "sourceLines" in result:
+                for _line in result["sourceLines"]:
+                    pass
+
+
 def main() -> None:
+    """Run the ReDoS linter."""
     parser = argparse.ArgumentParser(
         description="ReDoS Linter - Detects Regular Expression Denial of Service vulnerabilities"
     )
-    parser.add_argument("paths", metavar="path", type=str, nargs="+", help="Files or directories to check")
+    parser.add_argument(
+        "paths",
+        metavar="path",
+        type=str,
+        nargs="+",
+        help="Files or directories to check",
+    )
     args = parser.parse_args()
 
-    files_to_check = []
-    for p in args.paths:
-        if os.path.isdir(p):
-            for ext in ("**/*.py",):
-                files_to_check.extend(glob.glob(os.path.join(p, ext), recursive=True))
-        else:
-            files_to_check.append(p)
-
-    files_to_check = [f for f in files_to_check if ".venv" not in f and "node_modules" not in f]
-
-    regexes_with_paths = []
-    for file_path in files_to_check:
-        regexes = extract_regexes_from_file(file_path)
-        for regex_info in regexes:
-            regexes_with_paths.append(
-                {
-                    "regex": regex_info["regex"],
-                    "filePath": file_path,
-                    "line": regex_info["line"],
-                    "col": regex_info["col"],
-                    "source_lines": regex_info["source_lines"],
-                }
-            )
+    files_to_check = collect_files(args.paths)
+    regexes_with_paths = collect_all_regexes(files_to_check)
 
     if not regexes_with_paths:
         if use_colors():
@@ -124,92 +216,11 @@ def main() -> None:
             pass
         return
 
-    deno_path = get_deno_path()
-    checker_path = os.path.join(os.path.dirname(__file__), "checker.js")
-    bundle_path = os.path.join(os.path.dirname(__file__), "recheck.bundle.js")
-
-    env = os.environ.copy()
-    env["RECHECK_BACKEND"] = "pure"
-
-    # Debug: print what we're sending to JS
-    # print(f"DEBUG: Sending {len(regexes_with_paths)} regexes to JS", file=sys.stderr)
-    # for i, r in enumerate(regexes_with_paths[:2]):
-    #     print(f"DEBUG: Regex {i}: {list(r.keys())}", file=sys.stderr)
-
-    process = subprocess.run(
-        [deno_path, "run", "--allow-read", checker_path, bundle_path],
-        input=json.dumps(regexes_with_paths).encode("utf-8"),
-        capture_output=True,
-        env=env,
-    )
-
-    if process.stderr:
-        if use_colors():
-            pass
-        else:
-            pass
+    results = check_regexes_with_deno(regexes_with_paths)
+    if results is None:
         return
 
-    output = process.stdout.decode("utf-8")
-    if not output:
-        if use_colors():
-            pass
-        else:
-            pass
-        return
-
-    try:
-        results = json.loads(output)
-        # Debug: Check what we got back
-        # print(f"DEBUG: Got {len(results)} results from JS", file=sys.stderr)
-        # if results:
-        #     print(f"DEBUG: First result keys: {list(results[0].keys())}", file=sys.stderr)
-        #     if 'sourceLines' in results[0]:
-        #         print(f"DEBUG: sourceLines type: {type(results[0]['sourceLines'])}", file=sys.stderr)
-        #         print(f"DEBUG: sourceLines length: {len(results[0]['sourceLines']) if results[0]['sourceLines'] else 'None'}", file=sys.stderr)
-    except json.JSONDecodeError:
-        if use_colors():
-            pass
-        else:
-            pass
-        return
-
-    len(results)
-    vulnerable_count = sum(1 for r in results if r["status"] == "vulnerable")
-
-    if use_colors():
-        pass
-    else:
-        pass
-
-    for result in results:
-        if result["status"] == "vulnerable":
-            attack = result["attack"]
-            if use_colors():
-                if attack.get("pumps") and attack["pumps"]:
-                    attack["pumps"][0]
-                for _line in result.get("sourceLines", []):
-                    pass
-            else:
-                if attack.get("pumps") and attack["pumps"]:
-                    attack["pumps"][0]
-                for _line in result.get("sourceLines", []):
-                    pass
-
-    if vulnerable_count == 0:
-        if use_colors():
-            pass
-        else:
-            pass
-    else:
-        if use_colors():
-            pass
-        else:
-            pass
-        if use_colors():
-            pass
-        else:
-            pass
+    display_results(results)
 
 
 if __name__ == "__main__":

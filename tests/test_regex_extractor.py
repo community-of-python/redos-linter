@@ -1,10 +1,12 @@
+from pathlib import Path
+
 import pytest
 
-from src.redos_linter import extract_regexes_from_file, get_source_context
+from redos_linter import extract_regexes_from_file, get_source_context
 
 
 class TestRegexExtractor:
-    def test_extract_simple_regex(self, tmp_path) -> None:
+    def test_extract_simple_regex(self, tmp_path: Path) -> None:
         """Test extracting a simple regex from a Python file."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -18,7 +20,7 @@ pattern = re.compile(r"test.*")
         assert regexes[0]["line"] == 4
         assert "source_lines" in regexes[0]
 
-    def test_extract_multiple_regexes(self, tmp_path) -> None:
+    def test_extract_multiple_regexes(self, tmp_path: Path) -> None:
         """Test extracting multiple regexes from a Python file."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -37,7 +39,7 @@ r4 = re.findall(r"pattern4", text)
         assert "pattern3" in patterns
         assert "pattern4" in patterns
 
-    def test_extract_all_re_functions(self, tmp_path) -> None:
+    def test_extract_all_re_functions(self, tmp_path: Path) -> None:
         """Test extracting from all supported re module functions."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -56,7 +58,7 @@ r9 = re.subn(r"test", "replace", s)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 9
 
-    def test_ignore_non_string_constants(self, tmp_path) -> None:
+    def test_ignore_non_string_constants(self, tmp_path: Path) -> None:
         """Test that non-string regex patterns are ignored."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -69,7 +71,7 @@ r1 = re.compile(variable)  # Should be ignored - not a constant
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 0
 
-    def test_ignore_non_re_calls(self, tmp_path) -> None:
+    def test_ignore_non_re_calls(self, tmp_path: Path) -> None:
         """Test that non-re module calls are ignored."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -83,7 +85,7 @@ r2 = re.compile(r"test")  # Should be extracted
         assert len(regexes) == 1
         assert regexes[0]["regex"] == "test"
 
-    def test_nested_quantifiers_detection(self, tmp_path) -> None:
+    def test_nested_quantifiers_detection(self, tmp_path: Path) -> None:
         """Test that regexes with nested quantifiers are extracted."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -144,7 +146,7 @@ r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
         assert len(context) == 3
         assert ">>>   3: line 3" in context
 
-    def test_column_tracking(self, tmp_path) -> None:
+    def test_column_tracking(self, tmp_path: Path) -> None:
         """Test that column positions are correctly tracked."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -157,7 +159,7 @@ x = re.compile(r"test")
         # Column should point to the start of the string argument
         assert regexes[0]["col"] > 0
 
-    def test_raw_strings(self, tmp_path) -> None:
+    def test_raw_strings(self, tmp_path: Path) -> None:
         """Test that different string types are extracted."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -174,14 +176,14 @@ r3 = re.compile(r"simple")
             assert "line" in r
             assert "source_lines" in r
 
-    def test_empty_file(self, tmp_path) -> None:
+    def test_empty_file(self, tmp_path: Path) -> None:
         """Test handling of empty Python files."""
         test_file = tmp_path / "empty.py"
         test_file.write_text("")
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 0
 
-    def test_syntax_error_handling(self, tmp_path) -> None:
+    def test_syntax_error_handling(self, tmp_path: Path) -> None:
         """Test that files with syntax errors are handled gracefully."""
         test_file = tmp_path / "syntax_error.py"
         test_file.write_text("""

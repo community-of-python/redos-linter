@@ -1,16 +1,18 @@
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
 def test_help_command() -> None:
     """Test that the command line interface shows help."""
     result = subprocess.run(
-        [sys.executable, "-m", "src.redos_linter", "--help"],
+        [sys.executable, "-m", "redos_linter", "--help"],
         capture_output=True,
         text=True,
         cwd=str(Path(__file__).parent.parent),
+        check=False,
     )
 
     # Should show help
@@ -24,11 +26,12 @@ def test_run_on_existing_test_file() -> None:
 
     # Run the linter
     result = subprocess.run(
-        [sys.executable, "-m", "src.redos_linter", str(test_file)],
+        [sys.executable, "-m", "redos_linter", str(test_file)],
         capture_output=True,
         text=True,
         env={**os.environ, "NO_COLOR": "1"},
         cwd=str(Path(__file__).parent.parent),
+        check=False,
     )
 
     # Should succeed
@@ -42,8 +45,6 @@ def test_run_on_existing_test_file() -> None:
 
 def test_run_on_safe_file() -> None:
     """Test running on a file with only safe patterns."""
-    import tempfile
-
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write("""
 import re
@@ -59,11 +60,12 @@ numbers = re.compile(r"^\\d+$")
     try:
         # Run the linter
         result = subprocess.run(
-            [sys.executable, "-m", "src.redos_linter", temp_path],
+            [sys.executable, "-m", "redos_linter", temp_path],
             capture_output=True,
             text=True,
             env={**os.environ, "NO_COLOR": "1"},
             cwd=str(Path(__file__).parent.parent),
+            check=False,
         )
 
         # Should succeed
@@ -72,4 +74,4 @@ numbers = re.compile(r"^\\d+$")
         # Should not find vulnerabilities
         assert "VULNERABLE" not in result.stdout
     finally:
-        os.unlink(temp_path)
+        Path(temp_path).unlink()

@@ -107,7 +107,7 @@ uv sync
 uv run pytest
 
 # Run linter on test file
-uv run python -m src.redos_linter test.py
+uv run python -m redos_linter test.py
 ```
 
 ## How It Works
