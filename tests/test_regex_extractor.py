@@ -5,6 +5,14 @@ import pytest
 from redos_linter import extract_regexes_from_file, get_source_context
 
 
+REGEX_EXTRACT_LINE = 4
+REGEX_EXTRACT_COUNT_4 = 4
+REGEX_EXTRACT_COUNT_9 = 9
+REGEX_EXTRACT_COUNT_3 = 3
+REGEX_EXTRACT_COUNT_5 = 5
+REGEX_EXTRACT_COUNT_1 = 1
+
+
 class TestRegexExtractor:
     def test_extract_simple_regex(self, tmp_path: Path) -> None:
         """Test extracting a simple regex from a Python file."""
@@ -17,7 +25,7 @@ pattern = re.compile(r"test.*")
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 1
         assert regexes[0]["regex"] == "test.*"
-        assert regexes[0]["line"] == 4
+        assert regexes[0]["line"] == REGEX_EXTRACT_LINE
         assert "source_lines" in regexes[0]
 
     def test_extract_multiple_regexes(self, tmp_path: Path) -> None:
@@ -32,7 +40,7 @@ r3 = re.match(r"pattern3", text)
 r4 = re.findall(r"pattern4", text)
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == 4
+        assert len(regexes) == REGEX_EXTRACT_COUNT_4
         patterns = [r["regex"] for r in regexes]
         assert "pattern1" in patterns
         assert "pattern2" in patterns
@@ -56,7 +64,7 @@ r8 = re.sub(r"test", "replace", s)
 r9 = re.subn(r"test", "replace", s)
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == 9
+        assert len(regexes) == REGEX_EXTRACT_COUNT_9
 
     def test_ignore_non_string_constants(self, tmp_path: Path) -> None:
         """Test that non-string regex patterns are ignored."""
@@ -98,7 +106,7 @@ r3 = re.compile(r"(a?)+")  # nested quantifiers
 r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == 4
+        assert len(regexes) == REGEX_EXTRACT_COUNT_4
         patterns = [r["regex"] for r in regexes]
         assert "(a+)+" in patterns
         assert "(a*)*" in patterns
@@ -116,7 +124,7 @@ r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
         ]
         context = get_source_context(lines, 3, context=2)
 
-        assert len(context) == 5
+        assert len(context) == REGEX_EXTRACT_COUNT_5
         assert ">>>   3: line 3" in context
         assert "      2: line 2" in context
         assert "      4: line 4" in context
@@ -131,7 +139,7 @@ r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
         ]
         context = get_source_context(lines, 2, context=2)
 
-        assert len(context) == 4
+        assert len(context) == REGEX_EXTRACT_COUNT_4
         assert ">>>   2: line 2" in context
 
     def test_source_context_at_end(self) -> None:
@@ -143,7 +151,7 @@ r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
         ]
         context = get_source_context(lines, 3, context=2)
 
-        assert len(context) == 3
+        assert len(context) == REGEX_EXTRACT_COUNT_3
         assert ">>>   3: line 3" in context
 
     def test_column_tracking(self, tmp_path: Path) -> None:
@@ -155,7 +163,7 @@ import re
 x = re.compile(r"test")
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == 1
+        assert len(regexes) == REGEX_EXTRACT_COUNT_1
         # Column should point to the start of the string argument
         assert regexes[0]["col"] > 0
 
@@ -170,7 +178,7 @@ r2 = re.compile("normal\\\\string")
 r3 = re.compile(r"simple")
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == 3  # Should extract all 3 patterns
+        assert len(regexes) == REGEX_EXTRACT_COUNT_3  # Should extract all 3 patterns
         for r in regexes:
             assert "regex" in r
             assert "line" in r

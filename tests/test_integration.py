@@ -7,7 +7,7 @@ from pathlib import Path
 
 def test_help_command() -> None:
     """Test that the command line interface shows help."""
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "redos_linter", "--help"],
         capture_output=True,
         text=True,
@@ -25,7 +25,7 @@ def test_run_on_existing_test_file() -> None:
     test_file = Path(__file__).parent.parent / "test.py"
 
     # Run the linter
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "redos_linter", str(test_file)],
         capture_output=True,
         text=True,
@@ -59,7 +59,7 @@ numbers = re.compile(r"^\\d+$")
 
     try:
         # Run the linter
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [sys.executable, "-m", "redos_linter", temp_path],
             capture_output=True,
             text=True,

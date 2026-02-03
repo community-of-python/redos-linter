@@ -52,7 +52,7 @@ def get_deno_path() -> str:
 
 class RegexExtractor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.regexes = []
+        self.regexes: list[dict[str, int | str]] = []
 
     def visit_Call(self, node: ast.Call) -> None:
         if (
@@ -153,7 +153,7 @@ def check_regexes_with_deno(regexes: list[dict]) -> list[dict] | None:
     env = os.environ.copy()
     env["RECHECK_BACKEND"] = "pure"
 
-    process = subprocess.run(
+    process = subprocess.run(  # noqa: S603
         [deno_path, "run", "--allow-read", str(checker_path), str(bundle_path)],
         input=json.dumps(regexes).encode("utf-8"),
         capture_output=True,
