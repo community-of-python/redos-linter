@@ -12,13 +12,13 @@ def get_deno_path():
     deno_path = os.path.join(bin_dir, 'deno')
     if os.path.exists(deno_path):
         return deno_path
-    
+
     import deno
     deno_dir = os.path.dirname(deno.__file__)
     deno_path = os.path.join(deno_dir, "bin", "deno")
     if os.path.exists(deno_path):
         return deno_path
-        
+
     raise FileNotFoundError("Could not find the deno executable.")
 
 class RegexExtractor(ast.NodeVisitor):
@@ -54,7 +54,7 @@ def main():
                 files_to_check.extend(glob.glob(os.path.join(p, ext), recursive=True))
         else:
             files_to_check.append(p)
-    
+
     files_to_check = [f for f in files_to_check if '.venv' not in f and 'node_modules' not in f]
 
     regexes_with_paths = []
@@ -66,11 +66,11 @@ def main():
     if not regexes_with_paths:
         print("No regexes found.")
         return
-    
+
     deno_path = get_deno_path()
     checker_path = os.path.join(os.path.dirname(__file__), 'checker.js')
-    bundle_path = os.path.join(os.path.dirname(__file__), '..', 'dist', 'recheck.bundle.js')
-    
+    bundle_path = os.path.join(os.path.dirname(__file__), 'recheck.bundle.js')
+
     env = os.environ.copy()
     env['RECHECK_BACKEND'] = 'pure'
     process = subprocess.run(
