@@ -4,7 +4,9 @@ install:
     #!/bin/bash
     uv lock --upgrade
     uv sync --all-extras --frozen
+
     recheck_bundle_path=src/redos_linter/recheck.bundle.js
+    uv run deno install
     if test -f "$recheck_bundle_path"; then
         exit 0
     fi
@@ -16,7 +18,13 @@ lint:
     uv run mypy .
 
 test *args:
-    uv run --no-sync pytest {{ args }}
+    uv run --with test --no-sync pytest {{ args }}
+
+test-all:
+    uv run --with test --no-sync pytest -v
+
+test-file file:
+    uv run --with test --no-sync pytest -xvs tests/{{file}}.py
 
 publish:
     rm -rf dist
