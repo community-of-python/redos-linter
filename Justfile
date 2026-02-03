@@ -17,6 +17,11 @@ lint:
     uv run ruff check --fix
     uv run mypy .
 
+lint-ci:
+    uv run ruff format
+    uv run ruff check --fix
+    uv run mypy .
+
 test *args:
     uv run --no-sync pytest {{ args }}
 
