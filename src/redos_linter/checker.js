@@ -3,15 +3,23 @@ const { recheck } = await import(bundlePath);
 
 function main(content) {
     const regexesWithPaths = JSON.parse(content);
+    const results = [];
 
     for (const item of regexesWithPaths) {
-        const { regex, filePath } = item;
+        const { regex, filePath, line, col, source_lines } = item;
         const result = recheck.checkSync(regex, '');
-        if (result.status === 'vulnerable') {
-            console.log(`Vulnerable regex found in ${filePath}: ${regex}`);
-            console.log(`  Reason: ${JSON.stringify(result.attack)}`);
-        }
+        results.push({
+            regex: regex,
+            filePath: filePath,
+            line: line,
+            col: col,
+            sourceLines: source_lines,
+            status: result.status,
+            attack: result.attack
+        });
     }
+
+    console.log(JSON.stringify(results));
 }
 
 (async () => {
