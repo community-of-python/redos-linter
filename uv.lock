@@ -379,11 +379,11 @@ requires-dist = [{ name = "deno", specifier = ">=2.6.8" }]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.19.1" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "pytest-mock", specifier = ">=3.14.0" },
-    { name = "ruff", specifier = ">=0.14.14" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "ruff" },
 ]
 
 [[package]]

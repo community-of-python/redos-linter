@@ -18,13 +18,7 @@ lint:
     uv run mypy .
 
 test *args:
-    uv run --with test --no-sync pytest {{ args }}
-
-test-all:
-    uv run --with test --no-sync pytest -v
-
-test-file file:
-    uv run --with test --no-sync pytest -xvs tests/{{file}}.py
+    uv run --no-sync pytest {{ args }}
 
 publish:
     rm -rf dist
