@@ -1,10 +1,10 @@
-import ast
 import pytest
+
 from src.redos_linter import extract_regexes_from_file, get_source_context
 
 
 class TestRegexExtractor:
-    def test_extract_simple_regex(self, tmp_path):
+    def test_extract_simple_regex(self, tmp_path) -> None:
         """Test extracting a simple regex from a Python file."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -14,11 +14,11 @@ pattern = re.compile(r"test.*")
 """)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 1
-        assert regexes[0]['regex'] == "test.*"
-        assert regexes[0]['line'] == 4
-        assert 'source_lines' in regexes[0]
+        assert regexes[0]["regex"] == "test.*"
+        assert regexes[0]["line"] == 4
+        assert "source_lines" in regexes[0]
 
-    def test_extract_multiple_regexes(self, tmp_path):
+    def test_extract_multiple_regexes(self, tmp_path) -> None:
         """Test extracting multiple regexes from a Python file."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -31,13 +31,13 @@ r4 = re.findall(r"pattern4", text)
 """)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 4
-        patterns = [r['regex'] for r in regexes]
+        patterns = [r["regex"] for r in regexes]
         assert "pattern1" in patterns
         assert "pattern2" in patterns
         assert "pattern3" in patterns
         assert "pattern4" in patterns
 
-    def test_extract_all_re_functions(self, tmp_path):
+    def test_extract_all_re_functions(self, tmp_path) -> None:
         """Test extracting from all supported re module functions."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -56,7 +56,7 @@ r9 = re.subn(r"test", "replace", s)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 9
 
-    def test_ignore_non_string_constants(self, tmp_path):
+    def test_ignore_non_string_constants(self, tmp_path) -> None:
         """Test that non-string regex patterns are ignored."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -69,7 +69,7 @@ r1 = re.compile(variable)  # Should be ignored - not a constant
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 0
 
-    def test_ignore_non_re_calls(self, tmp_path):
+    def test_ignore_non_re_calls(self, tmp_path) -> None:
         """Test that non-re module calls are ignored."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -81,9 +81,9 @@ r2 = re.compile(r"test")  # Should be extracted
 """)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 1
-        assert regexes[0]['regex'] == "test"
+        assert regexes[0]["regex"] == "test"
 
-    def test_nested_quantifiers_detection(self, tmp_path):
+    def test_nested_quantifiers_detection(self, tmp_path) -> None:
         """Test that regexes with nested quantifiers are extracted."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -97,54 +97,54 @@ r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
 """)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 4
-        patterns = [r['regex'] for r in regexes]
+        patterns = [r["regex"] for r in regexes]
         assert "(a+)+" in patterns
         assert "(a*)*" in patterns
         assert "(a?)+" in patterns
         assert "^[a-zA-Z]+$" in patterns
 
-    def test_source_context_generation(self):
+    def test_source_context_generation(self) -> None:
         """Test that source context is correctly generated."""
         lines = [
             "line 1",
             "line 2",
             "line 3",  # target line
             "line 4",
-            "line 5"
+            "line 5",
         ]
         context = get_source_context(lines, 3, context=2)
-        
+
         assert len(context) == 5
         assert ">>>   3: line 3" in context
         assert "      2: line 2" in context
         assert "      4: line 4" in context
 
-    def test_source_context_at_beginning(self):
+    def test_source_context_at_beginning(self) -> None:
         """Test source context when target line is near the beginning."""
         lines = [
             "line 1",
             "line 2",  # target line
             "line 3",
-            "line 4"
+            "line 4",
         ]
         context = get_source_context(lines, 2, context=2)
-        
+
         assert len(context) == 4
         assert ">>>   2: line 2" in context
 
-    def test_source_context_at_end(self):
+    def test_source_context_at_end(self) -> None:
         """Test source context when target line is near the end."""
         lines = [
             "line 1",
-            "line 2", 
+            "line 2",
             "line 3",  # target line
         ]
         context = get_source_context(lines, 3, context=2)
-        
+
         assert len(context) == 3
         assert ">>>   3: line 3" in context
 
-    def test_column_tracking(self, tmp_path):
+    def test_column_tracking(self, tmp_path) -> None:
         """Test that column positions are correctly tracked."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -155,9 +155,9 @@ x = re.compile(r"test")
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 1
         # Column should point to the start of the string argument
-        assert regexes[0]['col'] > 0
+        assert regexes[0]["col"] > 0
 
-    def test_raw_strings(self, tmp_path):
+    def test_raw_strings(self, tmp_path) -> None:
         """Test that different string types are extracted."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
@@ -170,18 +170,18 @@ r3 = re.compile(r"simple")
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 3  # Should extract all 3 patterns
         for r in regexes:
-            assert 'regex' in r
-            assert 'line' in r
-            assert 'source_lines' in r
+            assert "regex" in r
+            assert "line" in r
+            assert "source_lines" in r
 
-    def test_empty_file(self, tmp_path):
+    def test_empty_file(self, tmp_path) -> None:
         """Test handling of empty Python files."""
         test_file = tmp_path / "empty.py"
         test_file.write_text("")
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 0
 
-    def test_syntax_error_handling(self, tmp_path):
+    def test_syntax_error_handling(self, tmp_path) -> None:
         """Test that files with syntax errors are handled gracefully."""
         test_file = tmp_path / "syntax_error.py"
         test_file.write_text("""
