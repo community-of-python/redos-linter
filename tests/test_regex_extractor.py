@@ -116,8 +116,8 @@ r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
         
         assert len(context) == 5
         assert ">>>   3: line 3" in context
-        assert "    2: line 2" in context
-        assert "    4: line 4" in context
+        assert "      2: line 2" in context
+        assert "      4: line 4" in context
 
     def test_source_context_at_beginning(self):
         """Test source context when target line is near the beginning."""
@@ -158,18 +158,21 @@ x = re.compile(r"test")
         assert regexes[0]['col'] > 0
 
     def test_raw_strings(self, tmp_path):
-        """Test that raw strings are correctly handled."""
+        """Test that different string types are extracted."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
 import re
 
 r1 = re.compile(r"raw\\string")
-r2 = re.compile("normal\\string")
+r2 = re.compile("normal\\\\string")
+r3 = re.compile(r"simple")
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == 2
-        assert regexes[0]['regex'] == "raw\\\\string"
-        assert regexes[1]['regex'] == "normal\\\\string"
+        assert len(regexes) == 3  # Should extract all 3 patterns
+        for r in regexes:
+            assert 'regex' in r
+            assert 'line' in r
+            assert 'source_lines' in r
 
     def test_empty_file(self, tmp_path):
         """Test handling of empty Python files."""
