@@ -1,11 +1,12 @@
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 
 
 @pytest.fixture
-def sample_vulnerable_file() -> str:
+def sample_vulnerable_file() -> Generator[str, None, None]:
     """Create a temporary file with vulnerable regex patterns."""
     content = """
 import re
@@ -30,7 +31,7 @@ s2 = re.compile(r"^a+$")  # simple quantifier without nesting
 
 
 @pytest.fixture
-def sample_safe_file() -> str:
+def sample_safe_file() -> Generator[str, None, None]:
     """Create a temporary file with only safe regex patterns."""
     content = """
 import re
@@ -53,7 +54,7 @@ numbers = re.compile(r"^\\d+$")
 
 
 @pytest.fixture
-def temp_directory() -> Path:
+def temp_directory() -> Generator[Path, None, None]:
     """Create a temporary directory with test files."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)

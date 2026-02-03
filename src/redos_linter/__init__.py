@@ -5,12 +5,19 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict, cast
 
 
 try:
     import deno  # type: ignore[import-untyped]
 except ImportError:
     deno = None
+
+
+class RegexInfo(TypedDict):
+    regex: str
+    line: int
+    col: int
 
 
 # ANSI color codes for better output
@@ -52,7 +59,7 @@ def get_deno_path() -> str:
 
 class RegexExtractor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.regexes: list[dict[str, int | str]] = []
+        self.regexes: list[RegexInfo] = []
 
     def visit_Call(self, node: ast.Call) -> None:
         if (
@@ -87,7 +94,14 @@ class RegexExtractor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def extract_regexes_from_file(filepath: str) -> list[dict]:
+class RegexInfoWithContext(TypedDict):
+    regex: str
+    line: int
+    col: int
+    source_lines: list[str]
+
+
+def extract_regexes_from_file(filepath: str) -> list[RegexInfoWithContext]:
     with Path(filepath).open() as f:
         code = f.read()
     tree = ast.parse(code, filename=filepath)
@@ -95,10 +109,15 @@ def extract_regexes_from_file(filepath: str) -> list[dict]:
     extractor.visit(tree)
 
     lines = code.splitlines()
-    for regex_info in extractor.regexes:
-        regex_info["source_lines"] = get_source_context(lines, regex_info["line"])
-
-    return extractor.regexes
+    return [
+        RegexInfoWithContext(
+            regex=ri["regex"],
+            line=ri["line"],
+            col=ri["col"],
+            source_lines=get_source_context(lines, ri["line"]),
+        )
+        for ri in extractor.regexes
+    ]
 
 
 def get_source_context(lines: list[str], line_num: int, context: int = 2) -> list[str]:
@@ -116,7 +135,7 @@ def get_source_context(lines: list[str], line_num: int, context: int = 2) -> lis
 
 def collect_files(paths: list[str]) -> list[str]:
     """Collect Python files from the given paths."""
-    files_to_check = []
+    files_to_check: list[str] = []
     for p in paths:
         path = Path(p)
         if path.is_dir():
@@ -126,9 +145,17 @@ def collect_files(paths: list[str]) -> list[str]:
     return [f for f in files_to_check if ".venv" not in f and "node_modules" not in f]
 
 
-def collect_all_regexes(files: list[str]) -> list[dict]:
+class RegexInfoWithFile(TypedDict):
+    regex: str
+    filePath: str
+    line: int
+    col: int
+    source_lines: list[str]
+
+
+def collect_all_regexes(files: list[str]) -> list[RegexInfoWithFile]:
     """Extract all regexes from the given files."""
-    regexes_with_paths = []
+    regexes_with_paths: list[RegexInfoWithFile] = []
     for file_path in files:
         regexes = extract_regexes_from_file(file_path)
         regexes_with_paths.extend(
@@ -144,7 +171,12 @@ def collect_all_regexes(files: list[str]) -> list[dict]:
     return regexes_with_paths
 
 
-def check_regexes_with_deno(regexes: list[dict]) -> list[dict] | None:
+class RecheckResult(TypedDict):
+    status: str
+    sourceLines: list[str]
+
+
+def check_regexes_with_deno(regexes: list[RegexInfoWithFile]) -> list[RecheckResult] | None:
     """Check regexes for vulnerabilities using Deno."""
     deno_path = get_deno_path()
     checker_path = Path(__file__).parent / "checker.js"
@@ -169,12 +201,12 @@ def check_regexes_with_deno(regexes: list[dict]) -> list[dict] | None:
         return None
 
     try:
-        return json.loads(output)
+        return cast("list[RecheckResult] | None", json.loads(output))
     except json.JSONDecodeError:
         return None
 
 
-def display_results(results: list[dict]) -> None:
+def display_results(results: list[RecheckResult]) -> None:
     """Display the check results."""
     vulnerable_count = sum(1 for r in results if r["status"] == "vulnerable")
 
