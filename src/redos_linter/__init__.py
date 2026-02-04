@@ -7,11 +7,7 @@ import sys
 from pathlib import Path
 from typing import TypedDict, cast
 
-
-try:
-    import deno  # type: ignore[import-untyped]
-except ImportError:
-    deno = None
+import deno  # type: ignore[import-untyped]
 
 
 # ANSI color codes for better output
@@ -31,24 +27,6 @@ class Colors:
 def use_colors() -> bool:
     """Check if colors should be used (TTY and not disabled by environment)."""
     return sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
-
-
-def get_deno_path() -> str:
-    python_executable = sys.executable
-    bin_dir = Path(python_executable).parent
-    deno_path = bin_dir / "deno"
-    if deno_path.exists():
-        return str(deno_path)
-
-    if deno is None:
-        raise FileNotFoundError("Could not find the deno executable: deno package not installed")
-
-    deno_dir = Path(deno.__file__).parent
-    deno_path = deno_dir / "bin" / "deno"
-    if deno_path.exists():
-        return str(deno_path)
-
-    raise FileNotFoundError("Could not find the deno executable.")
 
 
 class RegexInfo(TypedDict):
@@ -189,7 +167,7 @@ class AttackInfo(TypedDict):
 
 def check_regexes_with_deno(regexes: list[RegexInfoWithFile]) -> list[RecheckResult] | None:
     """Check regexes for vulnerabilities using Deno."""
-    deno_path = get_deno_path()
+    deno_path: str = deno.find_deno_bin()
     checker_path = Path(__file__).parent / "checker.js"
     bundle_path = Path(__file__).parent / "recheck.bundle.js"
 

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from redos_linter import get_deno_path, main
+from redos_linter import main
 
 
 class TestMainFunction:
@@ -398,24 +398,3 @@ safe2 = re.compile(r"^[A-Z]+$")
         calls = [str(call) for call in mock_stdout.write.call_args_list]
         output = "".join(calls)
         assert len(output) > 0
-
-
-class TestDenoPath:
-    def test_get_deno_path_exists(self) -> None:
-        """Test that get_deno_path can find deno when it exists."""
-        # This test will only pass if deno is installed in the expected location
-        try:
-            path = get_deno_path()
-            assert path is not None
-            assert Path(path).exists()
-        except FileNotFoundError:
-            pytest.skip("Deno not installed in expected location")
-
-    def test_get_deno_path_not_found(self) -> None:
-        """Test that get_deno_path raises FileNotFoundError when deno is not found."""
-        with (
-            patch("sys.executable", "/nonexistent/python"),
-            patch("deno.__file__", "/nonexistent/deno/__init__.py"),
-            pytest.raises(FileNotFoundError),
-        ):
-            get_deno_path()
