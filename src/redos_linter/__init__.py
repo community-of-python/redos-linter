@@ -71,7 +71,7 @@ class RegexExtractor(ast.NodeVisitor):
                     # Skip this regex as it's marked to be ignored
                     self.generic_visit(node)
                     return
-            
+
             self.regexes.append(
                 {
                     "regex": node.args[0].value,
@@ -130,7 +130,7 @@ def collect_files(paths: list[str]) -> list[str]:
             files_to_check.extend(str(f) for f in path.rglob("*.py"))
         else:
             files_to_check.append(p)
-    return [f for f in files_to_check if ".venv" not in f and "node_modules" not in f]
+    return [f for f in files_to_check if ".venv" not in f and "node_modules" not in f and ".cache" not in f]
 
 
 class RegexInfoWithFile(TypedDict):
@@ -261,7 +261,7 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
             location = f"{result.get('filePath', 'unknown')}:{result.get('line', '?')}:{result.get('col', '?')}"
             # Limit attack string length to prevent overly long output
             MAX_ATTACK_STRING_LENGTH = 100
-            
+
             if use_colors():
                 sys.stdout.write(f"{Colors.RED}VULNERABLE:{Colors.END} {location}\n")
                 sys.stdout.write(f"   {Colors.YELLOW}Pattern:{Colors.END} {Colors.CYAN}{result['regex']}{Colors.END}\n")
