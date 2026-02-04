@@ -249,6 +249,9 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
         if result["status"] == "vulnerable":
             attack: AttackInfo | None = result.get("attack")  # type: ignore[assignment]
             location = f"{result.get('filePath', 'unknown')}:{result.get('line', '?')}:{result.get('col', '?')}"
+            # Limit attack string length to prevent overly long output
+            MAX_ATTACK_STRING_LENGTH = 100
+            
             if use_colors():
                 sys.stdout.write(f"{Colors.RED}VULNERABLE:{Colors.END} {location}\n")
                 sys.stdout.write(f"   {Colors.YELLOW}Pattern:{Colors.END} {Colors.CYAN}{result['regex']}{Colors.END}\n")
@@ -256,7 +259,11 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
                     f"   {Colors.YELLOW}Issue:{Colors.END} Exponential backtracking due to nested quantifiers\n"
                 )
                 if attack:
-                    attack_str = json.dumps(attack.get("string", "unknown"))
+                    attack_string = attack.get("string", "unknown")
+                    # Truncate attack string if it's too long
+                    if isinstance(attack_string, str) and len(attack_string) > MAX_ATTACK_STRING_LENGTH:
+                        attack_string = attack_string[:MAX_ATTACK_STRING_LENGTH] + "..."
+                    attack_str = json.dumps(attack_string)
                     sys.stdout.write(
                         f"   {Colors.YELLOW}Attack string:{Colors.END} {Colors.MAGENTA}{attack_str}{Colors.END}\n"
                     )
@@ -279,7 +286,11 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
                 sys.stdout.write(f"   Pattern: {result['regex']}\n")
                 sys.stdout.write("   Issue: Exponential backtracking due to nested quantifiers\n")
                 if attack:
-                    sys.stdout.write(f"   Attack string: {json.dumps(attack.get('string', 'unknown'))}\n")
+                    attack_string = attack.get("string", "unknown")
+                    # Truncate attack string if it's too long
+                    if isinstance(attack_string, str) and len(attack_string) > MAX_ATTACK_STRING_LENGTH:
+                        attack_string = attack_string[:MAX_ATTACK_STRING_LENGTH] + "..."
+                    sys.stdout.write(f"   Attack string: {json.dumps(attack_string)}\n")
                     if attack.get("pumps") and attack["pumps"]:
                         pump = attack["pumps"][0]
                         sys.stdout.write(f'   Exploit: Repeating "{pump["pump"]}" causes catastrophic backtracking\n')
