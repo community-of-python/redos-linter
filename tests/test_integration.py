@@ -38,9 +38,9 @@ def test_run_on_existing_test_file() -> None:
     assert result.returncode == 0
 
     # Should find vulnerabilities in test.py
-    assert "VULNERABLE" in result.stdout
-    assert "Found" in result.stdout
-    assert "vulnerable" in result.stdout
+    assert "VULNERABLE" in result.stdout, result.stderr
+    assert "Found" in result.stdout, result.stderr
+    assert "vulnerable" in result.stdout, result.stderr
 
 
 def test_run_on_safe_file() -> None:

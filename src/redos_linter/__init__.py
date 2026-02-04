@@ -175,7 +175,7 @@ def check_regexes_with_deno(regexes: list[RegexInfoWithFile]) -> list[RecheckRes
     env["RECHECK_BACKEND"] = "pure"
 
     process = subprocess.run(  # noqa: S603
-        [deno_path, "run", "--allow-read", str(checker_path), str(bundle_path)],
+        [deno_path, "run", "--allow-read", str(checker_path), bundle_path.as_uri()],
         input=json.dumps(regexes).encode("utf-8"),
         capture_output=True,
         env=env,
