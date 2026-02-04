@@ -14,7 +14,8 @@ regex_vulnerable_2 = re.compile(r"(a|aa)+")
 regex_vulnerable_3 = re.compile(r"([a-z]+)+$")
 
 # A real-world example of a vulnerable regex
-regex_vulnerable_4 = re.compile(r"^(name|email|phone),([a-zA-Z0-9_]+,)*([a-zA-Z0-9_]+)$")
+# This one is intentionally ignored for demonstration purposes
+regex_vulnerable_4 = re.compile(r"^(name|email|phone),([a-zA-Z0-9_]+,)*([a-zA-Z0-9_]+)$")  # redos-linter: ignore
 
 
 # Safe regexes

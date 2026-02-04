@@ -36,8 +36,9 @@ class RegexInfo(TypedDict):
 
 
 class RegexExtractor(ast.NodeVisitor):
-    def __init__(self) -> None:
+    def __init__(self, lines: list[str]) -> None:
         self.regexes: list[RegexInfo] = []
+        self.lines = lines
 
     def visit_Call(self, node: ast.Call) -> None:
         if (
@@ -62,6 +63,15 @@ class RegexExtractor(ast.NodeVisitor):
             and isinstance(node.args[0], ast.Constant)
             and isinstance(node.args[0].value, str)
         ):
+            # Check if the line has an ignore comment
+            line_num = node.lineno - 1  # AST line numbers are 1-indexed, list indices are 0-indexed
+            if line_num < len(self.lines):
+                line_content = self.lines[line_num]
+                if "# redos-linter: ignore" in line_content:
+                    # Skip this regex as it's marked to be ignored
+                    self.generic_visit(node)
+                    return
+            
             self.regexes.append(
                 {
                     "regex": node.args[0].value,
@@ -83,10 +93,10 @@ def extract_regexes_from_file(filepath: str) -> list[RegexInfoWithContext]:
     with Path(filepath).open() as f:
         code = f.read()
     tree = ast.parse(code, filename=filepath)
-    extractor = RegexExtractor()
+    lines = code.splitlines()
+    extractor = RegexExtractor(lines)
     extractor.visit(tree)
 
-    lines = code.splitlines()
     return [
         RegexInfoWithContext(
             regex=ri["regex"],

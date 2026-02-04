@@ -9,6 +9,7 @@ A Python linter that detects Regular Expression Denial of Service (ReDoS) vulner
 - Provides detailed attack vectors when vulnerabilities are found
 - Supports both file and directory scanning
 - Clean, colored output for better readability
+- Support for ignore comments to exclude specific regexes from analysis
 
 ## Installation
 
@@ -91,6 +92,25 @@ safe_2 = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 safe_3 = re.compile(r"^(cat|dog)$")
 ```
 
+## Ignoring Specific Regexes
+
+You can exclude specific regexes from analysis by adding `# redos-linter: ignore` on the same line:
+
+```python
+import re
+
+# This vulnerable regex will be ignored
+vulnerable = re.compile(r"(a+)+")  # redos-linter: ignore
+
+# This vulnerable regex will be detected
+also_vulnerable = re.compile(r"([a-z]+)+$")
+```
+
+This is useful when:
+- You've reviewed a regex and determined it's safe despite being flagged
+- You want to temporarily ignore a warning while working on a fix
+- You have a regex that's intentionally complex for a specific reason
+
 ## Development
 
 Install in development mode:
@@ -107,8 +127,18 @@ uv sync
 uv run pytest
 
 # Run linter on test file
-uv run python -m redos_linter test.py
+uv run python -m redos_linter tests/test.py
 ```
+
+## Test Structure
+
+The tests are organized as follows:
+- `test_attack_string_limit.py` - Tests for attack string length limiting
+- `test_ignore_comments.py` - Tests for ignore comments functionality
+- `test_integration.py` - Integration tests for the command-line interface
+- `test_main_function.py` - Tests for the main linter functionality
+- `test_regex_extractor.py` - Tests for regex extraction from Python source code
+- `test.py` - Sample Python file with various regex patterns for testing
 
 ## How It Works
 

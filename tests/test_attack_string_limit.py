@@ -1,3 +1,5 @@
+"""Tests for attack string length limiting functionality."""
+
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -8,6 +10,8 @@ from redos_linter import main
 
 
 class TestAttackStringLimit:
+    """Test cases for attack string length limiting."""
+
     def test_long_attack_string_is_truncated(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that long attack strings are truncated to a reasonable length."""
         test_file = tmp_path / "test.py"
