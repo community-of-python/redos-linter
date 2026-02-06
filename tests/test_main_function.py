@@ -251,7 +251,7 @@ safe2 = re.compile(r"^[A-Z]+$")
     def test_json_decode_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test handling of invalid JSON from the checker."""
         test_file = tmp_path / "test.py"
-        test_file.write_text("import re\nr = re.compile(r'test')")
+        test_file.write_text("pattern = 'test.*'")
 
         monkeypatch.setattr("sys.argv", ["redos-linter", str(test_file)])
 
@@ -277,7 +277,7 @@ safe2 = re.compile(r"^[A-Z]+$")
     def test_subprocess_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test handling of subprocess errors."""
         test_file = tmp_path / "test.py"
-        test_file.write_text("import re\nr = re.compile(r'test')")
+        test_file.write_text("pattern = 'test.*'")
 
         monkeypatch.setattr("sys.argv", ["redos-linter", str(test_file)])
 

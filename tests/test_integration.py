@@ -23,8 +23,6 @@ def test_help_command() -> None:
 def test_run_on_existing_test_file() -> None:
     """Test running on the existing test.py file."""
     test_file = Path(__file__).parent / "test.py"
-    print(f"Looking for test file at: {test_file}")
-    print(f"Test file exists: {test_file.exists()}")
 
     # Run the linter
     result = subprocess.run(  # noqa: S603

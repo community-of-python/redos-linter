@@ -10,6 +10,10 @@ from typing import TypedDict, cast
 import deno  # type: ignore[import-untyped]
 
 
+# Minimum length for a string to be considered a potential regex
+MIN_REGEX_LENGTH = 2
+
+
 # ANSI color codes for better output
 class Colors:
     RED = "\033[91m"
@@ -40,29 +44,9 @@ class RegexExtractor(ast.NodeVisitor):
         self.regexes: list[RegexInfo] = []
         self.lines = lines
 
-    def visit_Call(self, node: ast.Call) -> None:
-        if (
-            (
-                isinstance(node.func, ast.Attribute)
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "re"
-                and node.func.attr
-                in (
-                    "compile",
-                    "search",
-                    "match",
-                    "fullmatch",
-                    "split",
-                    "findall",
-                    "finditer",
-                    "sub",
-                    "subn",
-                )
-            )
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
-        ):
+    def visit_Constant(self, node: ast.Constant) -> None:
+        # Check if this is a string constant that looks like a regex pattern
+        if isinstance(node.value, str) and self._looks_like_regex(node.value):
             # Check if the line has an ignore comment
             line_num = node.lineno - 1  # AST line numbers are 1-indexed, list indices are 0-indexed
             if line_num < len(self.lines):
@@ -74,12 +58,26 @@ class RegexExtractor(ast.NodeVisitor):
 
             self.regexes.append(
                 {
-                    "regex": node.args[0].value,
+                    "regex": node.value,
                     "line": node.lineno,
                     "col": node.col_offset,
                 }
             )
         self.generic_visit(node)
+
+    def _looks_like_regex(self, s: str) -> bool:
+        """Determine if a string looks like a regex pattern."""
+        # Skip empty strings and very short strings
+        if not s or len(s) < MIN_REGEX_LENGTH:
+            return False
+
+        # Skip strings that are clearly not regex patterns
+        if s.isalpha() or s.isdigit() or s.isspace():
+            return False
+
+        # Check for common regex metacharacters
+        regex_chars = r".^$*+?{}[]\|()"
+        return any(c in regex_chars for c in s)
 
 
 class RegexInfoWithContext(TypedDict):
@@ -260,7 +258,7 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
             attack: AttackInfo | None = result.get("attack")  # type: ignore[assignment]
             location = f"{result.get('filePath', 'unknown')}:{result.get('line', '?')}:{result.get('col', '?')}"
             # Limit attack string length to prevent overly long output
-            MAX_ATTACK_STRING_LENGTH = 100
+            max_attack_string_length = 100
 
             if use_colors():
                 sys.stdout.write(f"{Colors.RED}VULNERABLE:{Colors.END} {location}\n")
@@ -271,8 +269,8 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
                 if attack:
                     attack_string = attack.get("string", "unknown")
                     # Truncate attack string if it's too long
-                    if isinstance(attack_string, str) and len(attack_string) > MAX_ATTACK_STRING_LENGTH:
-                        attack_string = attack_string[:MAX_ATTACK_STRING_LENGTH] + "..."
+                    if isinstance(attack_string, str) and len(attack_string) > max_attack_string_length:
+                        attack_string = attack_string[:max_attack_string_length] + "..."
                     attack_str = json.dumps(attack_string)
                     sys.stdout.write(
                         f"   {Colors.YELLOW}Attack string:{Colors.END} {Colors.MAGENTA}{attack_str}{Colors.END}\n"
@@ -298,8 +296,8 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
                 if attack:
                     attack_string = attack.get("string", "unknown")
                     # Truncate attack string if it's too long
-                    if isinstance(attack_string, str) and len(attack_string) > MAX_ATTACK_STRING_LENGTH:
-                        attack_string = attack_string[:MAX_ATTACK_STRING_LENGTH] + "..."
+                    if isinstance(attack_string, str) and len(attack_string) > max_attack_string_length:
+                        attack_string = attack_string[:max_attack_string_length] + "..."
                     sys.stdout.write(f"   Attack string: {json.dumps(attack_string)}\n")
                     if attack.get("pumps") and attack["pumps"]:
                         pump = attack["pumps"][0]

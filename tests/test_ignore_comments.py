@@ -85,22 +85,22 @@ vulnerable3 = re.compile(r"([a-z]+)+$")
         # Check that only the non-ignored regexes were reported
         calls = [str(call) for call in mock_stdout.write.call_args_list]
         output = "".join(calls)
-        
+
         # Verify that "VULNERABLE" is in the output
         assert "VULNERABLE" in output
-        
+
         # Verify that vulnerable1 (line 5) is reported
         assert "test.py:5:" in output
         assert "(a+)+" in output
-        
+
         # Verify that vulnerable3 (line 11) is reported
         assert "test.py:11:" in output
         assert "([a-z]+)+$" in output
-        
+
         # Verify that vulnerable2 (the ignored one) is NOT reported
         assert "test.py:8:" not in output
         assert "(a|aa)+" not in output
-        
+
         # Should report 2 vulnerable regexes
         assert "Found 2 vulnerable regexes" in output
 
@@ -131,6 +131,6 @@ safe = re.compile(r"^[a-zA-Z0-9_]+$")  # redos-linter: ignore
         # Check that no vulnerabilities were reported
         calls = [str(call) for call in mock_stdout.write.call_args_list]
         output = "".join(calls)
-        
+
         # Should report no vulnerable regexes
-        assert "No vulnerable regexes found" in output or "All" in output and "appear safe" in output
+        assert "No vulnerable regexes found" in output or ("All" in output and "appear safe" in output)

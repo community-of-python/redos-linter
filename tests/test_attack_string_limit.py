@@ -25,7 +25,7 @@ vulnerable = re.compile(r"(a+)+")
 
         # Create a long attack string (longer than our limit of 100 characters)
         long_attack_string = "a" * 150 + "\u0000"
-        
+
         # Mock the deno subprocess call to return a vulnerable result with a long attack string
         mock_result = MagicMock()
         mock_result.stdout.decode.return_value = json.dumps(
@@ -62,16 +62,16 @@ vulnerable = re.compile(r"(a+)+")
         # Check that vulnerable regex was reported
         calls = [str(call) for call in mock_stdout.write.call_args_list]
         output = "".join(calls)
-        
+
         # Verify that "VULNERABLE" is in the output
         assert "VULNERABLE" in output
-        
+
         # Verify that the attack string was truncated (should contain "..." at the end)
         assert "..." in output
-        
+
         # Verify that the full long string is not in the output
         assert long_attack_string not in output
-        
+
         # Verify that the regex pattern is still shown correctly
         assert "(a+)+" in output
 
@@ -88,7 +88,7 @@ vulnerable = re.compile(r"(a+)+")
 
         # Create a short attack string (shorter than our limit of 100 characters)
         short_attack_string = "a" * 50 + "\u0000"
-        
+
         # Mock the deno subprocess call to return a vulnerable result with a short attack string
         mock_result = MagicMock()
         mock_result.stdout.decode.return_value = json.dumps(
@@ -125,13 +125,13 @@ vulnerable = re.compile(r"(a+)+")
         # Check that vulnerable regex was reported
         calls = [str(call) for call in mock_stdout.write.call_args_list]
         output = "".join(calls)
-        
+
         # Verify that "VULNERABLE" is in the output
         assert "VULNERABLE" in output
-        
+
         # Verify that the short attack string is in the output (not truncated)
         assert short_attack_string in output.replace("\\u0000", "\u0000") or short_attack_string[:-1] in output
-        
+
         # Should not contain "..." for short strings
         # Note: This might be tricky to test exactly due to JSON encoding, so we'll be lenient
         assert "(a+)+" in output

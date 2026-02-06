@@ -11,6 +11,7 @@ REGEX_EXTRACT_COUNT_9 = 9
 REGEX_EXTRACT_COUNT_3 = 3
 REGEX_EXTRACT_COUNT_5 = 5
 REGEX_EXTRACT_COUNT_1 = 1
+REGEX_EXTRACT_COUNT_2 = 2
 
 
 class TestRegexExtractor:
@@ -20,7 +21,7 @@ class TestRegexExtractor:
         test_file.write_text("""
 import re
 
-pattern = re.compile(r"test.*")
+pattern = "test.*"
 """)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 1
@@ -32,80 +33,68 @@ pattern = re.compile(r"test.*")
         """Test extracting multiple regexes from a Python file."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-import re
-
-r1 = re.compile(r"pattern1")
-r2 = re.search(r"pattern2", text)
-r3 = re.match(r"pattern3", text)
-r4 = re.findall(r"pattern4", text)
+# Simple strings that look like regexes
+pattern1 = "a+b+"
+pattern2 = ".*test.*"
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == REGEX_EXTRACT_COUNT_4
+        # Only strings that look like regexes should be detected
+        assert len(regexes) == REGEX_EXTRACT_COUNT_2
         patterns = [r["regex"] for r in regexes]
-        assert "pattern1" in patterns
-        assert "pattern2" in patterns
-        assert "pattern3" in patterns
-        assert "pattern4" in patterns
+        assert "a+b+" in patterns
+        assert ".*test.*" in patterns
 
     def test_extract_all_re_functions(self, tmp_path: Path) -> None:
-        """Test extracting from all supported re module functions."""
+        """Test that regex-like strings are detected regardless of context."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-import re
-
-r1 = re.compile(r"test")
-r2 = re.search(r"test", s)
-r3 = re.match(r"test", s)
-r4 = re.fullmatch(r"test", s)
-r5 = re.split(r"test", s)
-r6 = re.findall(r"test", s)
-r7 = re.finditer(r"test", s)
-r8 = re.sub(r"test", "replace", s)
-r9 = re.subn(r"test", "replace", s)
+# These should be detected as they look like regexes
+vuln_pattern = "(a+)+"
+safe_pattern = "a+b+"
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == REGEX_EXTRACT_COUNT_9
+        assert len(regexes) == REGEX_EXTRACT_COUNT_2
 
     def test_ignore_non_string_constants(self, tmp_path: Path) -> None:
-        """Test that non-string regex patterns are ignored."""
+        """Test that non-regex strings are ignored."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-import re
-
-pattern = "not a re call"
-variable = r"raw string but not re call"
-r1 = re.compile(variable)  # Should be ignored - not a constant
+# These should NOT be detected as they don't look like regexes
+name = "John Doe"
+message = "Hello world"
+number = "123"
 """)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 0
 
     def test_ignore_non_re_calls(self, tmp_path: Path) -> None:
-        """Test that non-re module calls are ignored."""
+        """Test that normal strings are ignored."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-import re
-import other_module
-
-r1 = other_module.compile(r"test")  # Should be ignored
-r2 = re.compile(r"test")  # Should be extracted
+# These should NOT be detected
+normal_string = "This is just text"
+another_string = "No regex patterns here"
+# This SHOULD be detected
+regex_string = "a+b+"
 """)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 1
-        assert regexes[0]["regex"] == "test"
+        assert regexes[0]["regex"] == "a+b+"
 
     def test_nested_quantifiers_detection(self, tmp_path: Path) -> None:
         """Test that regexes with nested quantifiers are extracted."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-import re
-
-# Various vulnerable patterns
-r1 = re.compile(r"(a+)+")  # nested quantifiers
-r2 = re.compile(r"(a*)*")  # nested quantifiers
-r3 = re.compile(r"(a?)+")  # nested quantifiers
-r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
+# Various patterns - only those that look like regexes should be detected
+vuln1 = "(a+)+"
+vuln2 = "(a*)*"
+vuln3 = "(a?)+"
+safe_pattern = "^[a-zA-Z]+$"
+# These should NOT be detected
+normal_text = "This is normal text"
 """)
         regexes = extract_regexes_from_file(str(test_file))
+        # All 4 regex-like patterns should be detected
         assert len(regexes) == REGEX_EXTRACT_COUNT_4
         patterns = [r["regex"] for r in regexes]
         assert "(a+)+" in patterns
@@ -158,27 +147,23 @@ r4 = re.compile(r"^[a-zA-Z]+$")  # safe pattern
         """Test that column positions are correctly tracked."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-import re
-
-x = re.compile(r"test")
+pattern = "test.*"
 """)
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == REGEX_EXTRACT_COUNT_1
-        # Column should point to the start of the string argument
+        # Column should point to the start of the string
         assert regexes[0]["col"] > 0
 
     def test_raw_strings(self, tmp_path: Path) -> None:
         """Test that different string types are extracted."""
         test_file = tmp_path / "test.py"
         test_file.write_text("""
-import re
-
-r1 = re.compile(r"raw\\string")
-r2 = re.compile("normal\\\\string")
-r3 = re.compile(r"simple")
+pattern1 = "a+b+"           # Simple string
+pattern2 = ".*test.*"       # String with regex chars
+pattern3 = "(a|b)*"         # Complex regex
 """)
         regexes = extract_regexes_from_file(str(test_file))
-        assert len(regexes) == REGEX_EXTRACT_COUNT_3  # Should extract all 3 patterns
+        assert len(regexes) == REGEX_EXTRACT_COUNT_3  # Should extract all 3 regex-like patterns
         for r in regexes:
             assert "regex" in r
             assert "line" in r

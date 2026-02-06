@@ -4,7 +4,7 @@ A Python linter that detects Regular Expression Denial of Service (ReDoS) vulner
 
 ## Features
 
-- Scans Python files for regular expressions
+- Scans Python files for all string literals that look like regular expressions
 - Detects vulnerable regex patterns using the [recheck](https://github.com/makenowjust-labs/recheck) engine
 - Provides detailed attack vectors when vulnerabilities are found
 - Supports both file and directory scanning
@@ -142,8 +142,8 @@ The tests are organized as follows:
 
 ## How It Works
 
-1. **AST Analysis**: Extracts all regular expression literals from Python source code using AST parsing
-2. **ReDoS Detection**: Uses the recheck engine to analyze each regex for potential exponential backtracking
+1. **AST Analysis**: Scans all string literals in Python source code and identifies those that look like regular expressions based on the presence of regex metacharacters
+2. **ReDoS Detection**: Uses the recheck engine to analyze each potential regex for potential exponential backtracking
 3. **Attack Generation**: When vulnerabilities are found, generates specific attack strings that demonstrate the issue
 4. **Reporting**: Provides clear, actionable output with source context and attack vectors
 
