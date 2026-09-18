@@ -4,6 +4,43 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
+
+@pytest.mark.parametrize(
+    ("source", "vulnerable_count"),
+    [
+        (
+            """
+assert 'schedule: "*/10 * * * *"' in content
+assert 'schedule: "0 2 * * *"' in content
+""",
+            0,
+        ),
+        ("""assert re.compile('schedule: "0 2 * * *"') in patterns""", 1),
+    ],
+)
+def test_cron_text_and_regex_membership_checks(tmp_path: Path, source: str, vulnerable_count: int) -> None:
+    """Skip literal membership text while still analyzing nested regex calls."""
+    test_file = tmp_path / "membership.py"
+    test_file.write_text(source)
+
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "redos_linter", str(test_file)],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "NO_COLOR": "1"},
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert result.stdout.count("VULNERABLE:") == vulnerable_count
+    if vulnerable_count == 0:
+        assert "No vulnerable regexes found." in result.stdout
+    else:
+        assert 'Pattern: schedule: "0 2 * * *"' in result.stdout
+
 
 def test_help_command() -> None:
     """Test that the command line interface shows help."""

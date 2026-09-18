@@ -44,6 +44,20 @@ class RegexExtractor(ast.NodeVisitor):
         self.regexes: list[RegexInfo] = []
         self.lines = lines
 
+    def visit_Compare(self, node: ast.Compare) -> None:
+        operands = [node.left, *node.comparators]
+        for index, operand in enumerate(operands):
+            # Each operand can participate in the comparison on either side.
+            adjacent_ops = node.ops[max(0, index - 1) : index + 1]
+            if (
+                isinstance(operand, ast.Constant)
+                and isinstance(operand.value, str)
+                and any(isinstance(op, (ast.In, ast.NotIn)) for op in adjacent_ops)
+            ):
+                # Membership tests treat literal strings as text, not regexes.
+                continue
+            self.visit(operand)
+
     def visit_Constant(self, node: ast.Constant) -> None:
         # Check if this is a string constant that looks like a regex pattern
         if isinstance(node.value, str) and self._looks_like_regex(node.value):
