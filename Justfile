@@ -3,14 +3,13 @@ default: install lint test
 build-deps:
     #!/bin/bash
     recheck_bundle_path=src/redos_linter/recheck.bundle.js
-    uv run deno install
+    uv run --frozen deno install --frozen
     if test -f "$recheck_bundle_path"; then
         exit 0
     fi
     ./node_modules/.bin/esbuild src/redos_linter/recheck-entry.js --bundle --format=esm --platform=browser --outfile="$recheck_bundle_path"
 
 install: build-deps
-    uv lock --upgrade
     uv sync --all-extras --frozen
 
 lint:
@@ -19,9 +18,9 @@ lint:
     uv run mypy .
 
 lint-ci:
-    uv run ruff format
-    uv run ruff check --fix
-    uv run mypy .
+    uv run --frozen ruff format --check
+    uv run --frozen ruff check --no-fix
+    uv run --frozen mypy .
 
 test *args:
     uv run --no-sync pytest {{ args }}
