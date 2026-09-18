@@ -67,6 +67,56 @@ number = "123"
         regexes = extract_regexes_from_file(str(test_file))
         assert len(regexes) == 0
 
+    @pytest.mark.parametrize(
+        "literal",
+        ["*/10 * * * *", "0 2 * * *", 'schedule: "*/10 * * * *"', 'schedule: "0 2 * * *"'],
+    )
+    @pytest.mark.parametrize("operator", ["in", "not in"])
+    def test_ignore_literal_membership_checks(self, tmp_path: Path, literal: str, operator: str) -> None:
+        """Cron text in membership checks is not interpreted as a regex."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text(f"assert {literal!r} {operator} content\n")
+
+        assert extract_regexes_from_file(str(test_file)) == []
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            'assert value in "0 2 * * *"',
+            'assert "0 2 * * *" in content in documents',
+            'assert value in "0 2 * * *" not in content',
+            'found = "0 2 * * *" in content',
+        ],
+    )
+    def test_ignore_membership_literals_in_other_positions(self, tmp_path: Path, source: str) -> None:
+        """Literal needles and haystacks are also text in chained comparisons."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text(source)
+
+        assert extract_regexes_from_file(str(test_file)) == []
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            'pattern = "0 2 * * *"',
+            'compiled = re.compile("0 2 * * *")',
+            'assert re.search("0 2 * * *", content)',
+            'assert re.compile("0 2 * * *") in patterns',
+            'assert "text" not in re.findall("0 2 * * *", content)',
+            'assert (pattern := "0 2 * * *") in patterns',
+            'assert value in ["0 2 * * *"]',
+            'assert "0 2 * * *" == pattern in patterns',
+        ],
+    )
+    def test_preserve_potential_regexes_around_membership_checks(self, tmp_path: Path, source: str) -> None:
+        """Keep scanning calls, assignments, containers, and unrelated comparisons."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text(source)
+
+        regexes = extract_regexes_from_file(str(test_file))
+
+        assert [regex["regex"] for regex in regexes] == ["0 2 * * *"]
+
     def test_ignore_non_re_calls(self, tmp_path: Path) -> None:
         """Test that normal strings are ignored."""
         test_file = tmp_path / "test.py"
