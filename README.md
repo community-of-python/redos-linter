@@ -45,6 +45,17 @@ You can also run it as a Python module:
 python -m redos_linter src/
 ```
 
+## Exit status
+
+Both `redos-linter` and `python -m redos_linter` return:
+
+- `0` when every checked regex is safe, or no regexes are found.
+- `1` when vulnerabilities are found, with locations, patterns, and source context in the output.
+- `2` when the checker fails, returns an incomplete or invalid response, or cannot classify every regex.
+
+Invalid arguments also return `2`. File access and Python parsing errors terminate with a nonzero status.
+Starting with version 0.3.2, findings fail the command; CI users who want an advisory check should configure their job to allow failure.
+
 ## Output
 
 The linter provides clear output indicating:

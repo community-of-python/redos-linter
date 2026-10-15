@@ -204,21 +204,15 @@ def check_regexes_with_deno(regexes: list[RegexInfoWithFile]) -> list[RecheckRes
         check=False,
     )
 
-    if process.stderr:
+    if process.returncode != 0 or process.stderr:
+        error = process.stderr.decode("utf-8") or f"Checker exited with status {process.returncode}\n"
         if use_colors():
-            sys.stderr.write(f"{Colors.RED}Error: {Colors.END}{process.stderr.decode('utf-8')}")
+            sys.stderr.write(f"{Colors.RED}Error: {Colors.END}{error}")
         else:
-            sys.stderr.write(f"Error: {process.stderr.decode('utf-8')}")
+            sys.stderr.write(f"Error: {error}")
         return None
 
     output = process.stdout.decode("utf-8")
-    if not output:
-        if use_colors():
-            sys.stdout.write(f"{Colors.GREEN}No vulnerable regexes found.{Colors.END}\n")
-        else:
-            sys.stdout.write("No vulnerable regexes found.\n")
-        return None
-
     try:
         return cast("list[RecheckResult] | None", json.loads(output))
     except json.JSONDecodeError:
@@ -229,7 +223,7 @@ def check_regexes_with_deno(regexes: list[RegexInfoWithFile]) -> list[RecheckRes
         return None
 
 
-def main() -> None:  # noqa: PLR0912,PLR0915,C901
+def main() -> int:  # noqa: PLR0912,PLR0915,C901
     """Run the ReDoS linter."""
     parser = argparse.ArgumentParser(
         description="ReDoS Linter - Detects Regular Expression Denial of Service vulnerabilities"
@@ -251,11 +245,15 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
             sys.stdout.write(f"{Colors.GREEN}No vulnerable regexes found.{Colors.END}\n")
         else:
             sys.stdout.write("No vulnerable regexes found.\n")
-        return
+        return 0
 
     results = check_regexes_with_deno(regexes_with_paths)
-    if results is None:
-        return
+    if not isinstance(results, list) or len(results) != len(regexes_with_paths):
+        sys.stderr.write("Error: Incomplete or invalid response from checker\n")
+        return 2
+    if any(not isinstance(result, dict) or "status" not in result for result in results):
+        sys.stderr.write("Error: Invalid response from checker\n")
+        return 2
 
     total_regexes = len(results)
     vulnerable_count = sum(1 for r in results if r["status"] == "vulnerable")
@@ -322,6 +320,10 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
                     sys.stdout.write(f"   {line}\n")
                 sys.stdout.write("\n")
 
+    if any(result["status"] not in {"safe", "vulnerable"} for result in results):
+        sys.stderr.write("Error: Checker could not classify every regex\n")
+        return 2
+
     if vulnerable_count == 0:
         safe_msg = f"All {total_regexes} regex{'es' if total_regexes != 1 else ''} appear safe from ReDoS attacks.\n"
         if use_colors():
@@ -344,6 +346,8 @@ def main() -> None:  # noqa: PLR0912,PLR0915,C901
         sys.stdout.write("   - Consider using re.compile with re.IGNORECASE carefully\n")
         sys.stdout.write("   - Test regexes with long, malformed input strings\n")
 
+    return 1 if vulnerable_count else 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
