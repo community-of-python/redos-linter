@@ -33,7 +33,7 @@ def test_cron_text_and_regex_membership_checks(tmp_path: Path, source: str, vuln
         check=False,
     )
 
-    assert result.returncode == 0
+    assert result.returncode == int(vulnerable_count > 0)
     assert result.stderr == ""
     assert result.stdout.count("VULNERABLE:") == vulnerable_count
     if vulnerable_count == 0:
@@ -71,8 +71,8 @@ def test_run_on_existing_test_file() -> None:
         check=False,
     )
 
-    # Should succeed
-    assert result.returncode == 0
+    # Findings must fail the command.
+    assert result.returncode == 1
 
     # Should find vulnerabilities in test.py
     assert "VULNERABLE" in result.stdout, result.stderr
@@ -112,3 +112,30 @@ numbers = re.compile(r"^\\d+$")
         assert "VULNERABLE" not in result.stdout
     finally:
         Path(temp_path).unlink()
+
+
+@pytest.mark.parametrize("command", [["redos-linter"], [sys.executable, "-m", "redos_linter"]])
+@pytest.mark.parametrize(
+    ("source", "expected_status", "message"),
+    [
+        ("value = 1", 0, "No vulnerable regexes found."),
+        ("pattern = r'^[a-z]+$'", 0, "appear safe"),
+        ("pattern = r'^(a+)+$'", 1, "VULNERABLE:"),
+    ],
+)
+def test_cli_exit_status(tmp_path: Path, command: list[str], source: str, expected_status: int, message: str) -> None:
+    test_file = tmp_path / "pattern.py"
+    test_file.write_text(source)
+    result = subprocess.run(  # noqa: S603
+        [*command, str(test_file)],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "NO_COLOR": "1"},
+        check=False,
+    )
+    assert result.returncode == expected_status, result.stdout + result.stderr
+    assert message in result.stdout + result.stderr
+    if expected_status == 1:
+        assert f"{test_file}:1:" in result.stdout
+        assert "Pattern: ^(a+)+$" in result.stdout
+        assert ">>>" in result.stdout

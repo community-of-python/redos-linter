@@ -7,6 +7,9 @@ import pytest
 from redos_linter import main
 
 
+CHECKER_ERROR_STATUS = 2
+
+
 class TestMainFunction:
     def test_no_files_to_check(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test when no Python files are found."""
@@ -17,7 +20,7 @@ class TestMainFunction:
         empty_dir.mkdir()
 
         with patch("sys.stdout") as mock_stdout:
-            main()
+            assert main() == 0
 
         # Should print "No regexes found" message
         mock_stdout.write.assert_called()
@@ -67,7 +70,7 @@ vulnerable = re.compile(r"(a+)+")
             patch("subprocess.run", return_value=mock_result),
             patch("sys.stdout") as mock_stdout,
         ):
-            main()
+            assert main() == 1
 
         # Check that vulnerable regex was reported
         calls = [str(call) for call in mock_stdout.write.call_args_list]
@@ -113,7 +116,7 @@ safe = re.compile(r"^[a-zA-Z0-9]+$")
             patch("subprocess.run", return_value=mock_result),
             patch("sys.stdout") as mock_stdout,
         ):
-            main()
+            assert main() == 0
 
         # Check that no vulnerabilities were reported
         calls = [str(call) for call in mock_stdout.write.call_args_list]
@@ -178,7 +181,7 @@ safe2 = re.compile(r"^[A-Z]+$")
             patch("subprocess.run", return_value=mock_result),
             patch("sys.stdout") as mock_stdout,
         ):
-            main()
+            assert main() == 1
 
         # Check that vulnerabilities were reported
         calls = [str(call) for call in mock_stdout.write.call_args_list]
@@ -239,7 +242,7 @@ safe2 = re.compile(r"^[A-Z]+$")
             patch("subprocess.run", return_value=mock_result),
             patch("sys.stdout") as mock_stdout,
         ):
-            main()
+            assert main() == 1
 
         # Check that both files were scanned but .venv and node_modules were ignored
         calls = [str(call) for call in mock_stdout.write.call_args_list]
@@ -265,7 +268,7 @@ safe2 = re.compile(r"^[A-Z]+$")
             patch("subprocess.run", return_value=mock_result),
             patch("sys.stderr") as mock_stderr,
         ):
-            main()
+            assert main() == CHECKER_ERROR_STATUS
 
         # Should print error message
         mock_stderr.write.assert_called()
@@ -291,7 +294,7 @@ safe2 = re.compile(r"^[A-Z]+$")
             patch("subprocess.run", return_value=mock_result),
             patch("sys.stderr") as mock_stderr,
         ):
-            main()
+            assert main() == CHECKER_ERROR_STATUS
 
         # Should print error message
         mock_stderr.write.assert_called()
@@ -351,7 +354,7 @@ safe2 = re.compile(r"^[A-Z]+$")
             patch("subprocess.run", return_value=mock_result),
             patch("sys.stdout") as mock_stdout,
         ):
-            main()
+            assert main() == 1
 
         # Should process both paths
         calls = [str(call) for call in mock_stdout.write.call_args_list]
@@ -392,9 +395,46 @@ safe2 = re.compile(r"^[A-Z]+$")
             patch("subprocess.run", return_value=mock_result),
             patch("sys.stdout") as mock_stdout,
         ):
-            main()
+            assert main() == 1
 
         # Check that output was generated (colors may or may not be present)
         calls = [str(call) for call in mock_stdout.write.call_args_list]
         output = "".join(calls)
         assert len(output) > 0
+
+
+@pytest.mark.parametrize(
+    "checker_response",
+    [
+        ("", 1, "Checker exited with status 1"),
+        ("", 0, "Invalid response"),
+        ("[]", 0, "Incomplete or invalid response"),
+        ("null", 0, "Incomplete or invalid response"),
+        ('{"status": "safe"}', 0, "Incomplete or invalid response"),
+        ("[null]", 0, "Invalid response"),
+        ("[{}]", 0, "Invalid response"),
+        ('[{"status": "unknown"}]', 0, "could not classify"),
+        ('[{"status": "safe"}, {"status": "safe"}]', 0, "Incomplete or invalid response"),
+        ('[{"status": "safe"}]', 1, "Checker exited with status 1"),
+    ],
+)
+def test_checker_failure_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    checker_response: tuple[str, int, str],
+) -> None:
+    test_file = tmp_path / "pattern.py"
+    test_file.write_text("pattern = 'test.*'")
+    monkeypatch.setattr("sys.argv", ["redos-linter", str(test_file)])
+    mock_result = MagicMock()
+    stdout, returncode, message = checker_response
+    mock_result.stdout.decode.return_value = stdout
+    mock_result.stderr = b""
+    mock_result.returncode = returncode
+    with patch("subprocess.run", return_value=mock_result):
+        assert main() == CHECKER_ERROR_STATUS
+    output = capsys.readouterr()
+    assert message in output.err
+    assert "appear safe" not in output.out
+    assert "No vulnerable regexes" not in output.out
