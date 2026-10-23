@@ -1,8 +1,10 @@
+import { checkPattern } from './pattern.js';
+
 self.onmessage = async (event) => {
     const { bundlePath, shard } = event.data;
     const { recheck } = await import(bundlePath);
     const results = shard.map((item) => {
-        const result = recheck.checkSync(item.regex, '');
+        const result = checkPattern(recheck, item.regex);
         return {
             regex: item.regex,
             filePath: item.filePath,

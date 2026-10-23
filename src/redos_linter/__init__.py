@@ -2,8 +2,10 @@ import argparse
 import ast
 import json
 import os
+import re
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 from typing import TypedDict, cast
 
@@ -12,6 +14,8 @@ import deno  # type: ignore[import-untyped]
 
 # Minimum length for a string to be considered a potential regex
 MIN_REGEX_LENGTH = 2
+REGEX_FUNCTIONS = {"compile", "search", "match", "fullmatch", "findall", "finditer", "split", "sub", "subn"}
+TEXT_METHODS = {"glob", "rglob", "open"}
 
 
 # ANSI color codes for better output
@@ -43,6 +47,70 @@ class RegexExtractor(ast.NodeVisitor):
     def __init__(self, lines: list[str]) -> None:
         self.regexes: list[RegexInfo] = []
         self.lines = lines
+        self.regex_modules = {"re", "regex"}
+        self.regex_functions: dict[str, str] = {}
+
+    def visit_Import(self, node: ast.Import) -> None:
+        self.regex_modules.update(alias.asname or alias.name for alias in node.names if alias.name in {"re", "regex"})
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module in {"re", "regex"}:
+            self.regex_functions.update(
+                (alias.asname or alias.name, alias.name)
+                for alias in node.names
+                if alias.name in REGEX_FUNCTIONS | {"escape"}
+            )
+
+    def visit_Call(self, node: ast.Call) -> None:
+        regex_function = self._regex_function(node.func)
+        text_call = (isinstance(node.func, ast.Name) and node.func.id == "open") or (
+            isinstance(node.func, ast.Attribute) and node.func.attr in TEXT_METHODS
+        )
+        self.visit(node.func)
+        arguments = [(index == 0, argument) for index, argument in enumerate(node.args)]
+        arguments.extend((keyword.arg == "pattern", keyword.value) for keyword in node.keywords)
+        for pattern_argument, argument in arguments:
+            if regex_function in REGEX_FUNCTIONS and pattern_argument:
+                self._visit_regex_argument(argument)
+            elif isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                if regex_function is None and not text_call:
+                    self.visit(argument)
+            else:
+                self.visit(argument)
+
+    def _visit_regex_argument(self, node: ast.expr) -> None:
+        if isinstance(node, ast.Constant):
+            self._record_regex(node, explicit=True)
+        elif isinstance(node, ast.JoinedStr):
+            # Preserve checks of static fragments when the string is explicitly a regex.
+            for value in node.values:
+                if isinstance(value, ast.Constant):
+                    self._record_regex(value, explicit=True)
+                elif isinstance(value, ast.FormattedValue):
+                    self.visit(value.value)
+        else:
+            self.visit(node)
+
+    def _regex_function(self, node: ast.expr) -> str | None:
+        if isinstance(node, ast.Name):
+            return self.regex_functions.get(node.id)
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id in self.regex_modules
+            and node.attr in REGEX_FUNCTIONS | {"escape"}
+        ):
+            return node.attr
+        return None
+
+    def visit_JoinedStr(self, node: ast.JoinedStr) -> None:
+        if len(node.values) == 1 and isinstance(node.values[0], ast.Constant):
+            self.visit(node.values[0])
+        else:
+            # Fragments do not represent the complete dynamically constructed pattern.
+            for value in node.values:
+                if isinstance(value, ast.FormattedValue):
+                    self.visit(value.value)
 
     def visit_Compare(self, node: ast.Compare) -> None:
         operands = [node.left, *node.comparators]
@@ -59,15 +127,17 @@ class RegexExtractor(ast.NodeVisitor):
             self.visit(operand)
 
     def visit_Constant(self, node: ast.Constant) -> None:
+        self._record_regex(node)
+
+    def _record_regex(self, node: ast.Constant, *, explicit: bool = False) -> None:
         # Check if this is a string constant that looks like a regex pattern
-        if isinstance(node.value, str) and self._looks_like_regex(node.value):
+        if isinstance(node.value, str) and (explicit or self._looks_like_regex(node.value)):
             # Check if the line has an ignore comment
             line_num = node.lineno - 1  # AST line numbers are 1-indexed, list indices are 0-indexed
             if line_num < len(self.lines):
                 line_content = self.lines[line_num]
                 if "# redos-linter: ignore" in line_content:
                     # Skip this regex as it's marked to be ignored
-                    self.generic_visit(node)
                     return
 
             self.regexes.append(
@@ -77,7 +147,6 @@ class RegexExtractor(ast.NodeVisitor):
                     "col": node.col_offset,
                 }
             )
-        self.generic_visit(node)
 
     def _looks_like_regex(self, s: str) -> bool:
         """Determine if a string looks like a regex pattern."""
@@ -91,7 +160,17 @@ class RegexExtractor(ast.NodeVisitor):
 
         # Check for common regex metacharacters
         regex_chars = r".^$*+?{}[]\|()"
-        return any(c in regex_chars for c in s)
+        if not any(c in regex_chars for c in s):
+            return False
+        # Heuristically discovered text must at least be valid Python regex syntax.
+        # Explicit regex arguments remain visible even when invalid or unsupported.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            try:
+                re.compile(s)
+            except (re.error, OverflowError):
+                return False
+        return True
 
 
 class RegexInfoWithContext(TypedDict):

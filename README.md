@@ -153,8 +153,8 @@ The tests are organized as follows:
 
 ## How It Works
 
-1. **AST Analysis**: Scans string literals in Python source code and identifies those that look like regular expressions based on the presence of regex metacharacters. Literals used directly in `in` / `not in` comparisons are treated as text and skipped, so checks such as `assert 'schedule: "0 2 * * *"' in content` do not need an ignore comment. Strings in assignments, containers, and nested calls (including regex calls inside comparisons) are still scanned.
-2. **ReDoS Detection**: Uses the recheck engine to analyze each potential regex for potential exponential backtracking
+1. **AST Analysis**: Scans string literals containing regex metacharacters that form valid Python regex syntax, including patterns in assignments, containers, and nested calls. Direct literal pattern arguments to `re` and `regex` APIs (including imported aliases) are checked even when invalid, so malformed explicit patterns still fail. Literal membership comparisons, file modes, glob arguments, and subjects/replacements in recognized regex calls are treated as text. Message f-string fragments are skipped; fragments in explicit regex arguments and nested calls inside f-string expressions are still checked.
+2. **ReDoS Detection**: Uses the recheck engine to analyze each potential regex for potential exponential backtracking. Leading global Python multiline (`(?m)`) and dotall (`(?s)`) modes are translated to checker flags while reports retain the original pattern. Other unsupported syntax or flags still produce an unclassified result and exit status `2`; the linter does not evaluate dynamically constructed patterns.
 3. **Attack Generation**: When vulnerabilities are found, generates specific attack strings that demonstrate the issue
 4. **Reporting**: Provides clear, actionable output with source context and attack vectors
 

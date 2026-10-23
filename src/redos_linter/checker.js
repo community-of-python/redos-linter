@@ -1,3 +1,5 @@
+import { checkPattern } from './pattern.js';
+
 const bundlePath = Deno.args[0];
 
 async function readStdin() {
@@ -28,7 +30,7 @@ function mapResult(item, result) {
 
 async function runInline(items) {
     const { recheck } = await import(bundlePath);
-    return items.map((item) => mapResult(item, recheck.checkSync(item.regex, '')));
+    return items.map((item) => mapResult(item, checkPattern(recheck, item.regex)));
 }
 
 function runInWorker(shard) {
