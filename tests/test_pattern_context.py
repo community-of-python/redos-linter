@@ -108,15 +108,87 @@ def test_explicit_regex_fstring_still_detects_vulnerable_fragment(
     assert "VULNERABLE" in capsys.readouterr().out
 
 
-def test_explicit_regex_fstring_keeps_unclassified_fragments(
+@pytest.mark.parametrize(
+    "source",
+    [
+        'import re\npattern = re.compile(f"[{prefix}]")\n',
+        'import re\npattern = re.compile(f"({re.escape(prefix)})")\n',
+        "import re\npattern = re.compile(f\"[{''.join(values)}]\")\n",
+        'import re\npattern = re.compile(rf"\\{suffix}")\n',
+    ],
+)
+def test_dynamic_regex_fragments_are_not_standalone_patterns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], source: str
+) -> None:
+    path = tmp_path / "example.py"
+    path.write_text(source)
+    monkeypatch.setattr(sys, "argv", ["redos-linter", str(path)])
+
+    assert main() == 0
+    output = capsys.readouterr()
+    assert f"Warning: {path}:2:" in output.err
+    assert "runtime pattern safety is unknown" in output.err
+    assert "UNCLASSIFIED" not in output.err
+    assert "analyzed static" in output.out
+
+
+@pytest.mark.parametrize("source", ['re.compile(f"[")', 're.compile(f"*{prefix}")'])
+def test_invalid_explicit_fstring_patterns_still_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], source: str
+) -> None:
+    path = tmp_path / "example.py"
+    path.write_text(source)
+    monkeypatch.setattr(sys, "argv", ["redos-linter", str(path)])
+
+    assert main() == 2  # noqa: PLR2004 -- Complete invalid literals still fail.
+    assert "UNCLASSIFIED" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "re.compile(f\"{value:{re.compile('^(a+)+$')}}\")",
+        "message = f\"{value:{re.compile('^(a+)+$')}}\"",
+    ],
+)
+def test_nested_format_specifications_preserve_regex_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], source: str
+) -> None:
+    path = tmp_path / "example.py"
+    path.write_text(source)
+    monkeypatch.setattr(sys, "argv", ["redos-linter", str(path)])
+
+    assert main() == 1
+    assert "VULNERABLE" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("count", [1, 8])
+def test_unknown_diagnostics_include_engine_reason_and_location(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], count: int
+) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("import re\n" + 're.compile("*")\n' * count)
+    monkeypatch.setattr(sys, "argv", ["redos-linter", str(path)])
+
+    assert main() == 2  # noqa: PLR2004 -- Unclassified patterns retain their error status.
+    diagnostics = capsys.readouterr().err
+    assert diagnostics.count("UNCLASSIFIED:") == count
+    assert f"{path}:2:" in diagnostics
+    assert "Pattern: '*'" in diagnostics
+    assert "Reason: invalid:" in diagnostics
+
+
+def test_dynamic_regex_with_complete_fragments_reports_partial_analysis(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     path = tmp_path / "example.py"
-    path.write_text('import re\npattern = re.compile(f"[{prefix}]")\n')
+    path.write_text('import re\npattern = re.compile(f"prefix{suffix}tail")\n')
     monkeypatch.setattr(sys, "argv", ["redos-linter", str(path)])
 
-    assert main() == 2  # noqa: PLR2004 -- An incomplete explicit regex must not pass.
-    assert "could not classify every regex" in capsys.readouterr().err
+    assert main() == 0
+    output = capsys.readouterr()
+    assert "analyzed static regexes" in output.out
+    assert "runtime pattern safety is unknown" in output.err
 
 
 @pytest.mark.parametrize("pattern", ["*", "(?i)^prefix$", "(?x)^prefix$", "(?m:prefix)"])

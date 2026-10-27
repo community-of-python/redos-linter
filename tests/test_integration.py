@@ -37,7 +37,7 @@ def test_cron_text_and_regex_membership_checks(tmp_path: Path, source: str, vuln
     assert result.stderr == ""
     assert result.stdout.count("VULNERABLE:") == vulnerable_count
     if vulnerable_count == 0:
-        assert "No vulnerable regexes found." in result.stdout
+        assert "No vulnerabilities found in analyzed static patterns." in result.stdout
     else:
         assert 'Pattern: schedule: "0 2 * * *"' in result.stdout
 
@@ -118,7 +118,7 @@ numbers = re.compile(r"^\\d+$")
 @pytest.mark.parametrize(
     ("source", "expected_status", "message"),
     [
-        ("value = 1", 0, "No vulnerable regexes found."),
+        ("value = 1", 0, "No vulnerabilities found in analyzed static patterns."),
         ("pattern = r'^[a-z]+$'", 0, "appear safe"),
         ("pattern = r'^(a+)+$'", 1, "VULNERABLE:"),
     ],
