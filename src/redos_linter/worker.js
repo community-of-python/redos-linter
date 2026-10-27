@@ -13,6 +13,7 @@ self.onmessage = async (event) => {
             sourceLines: item.source_lines,
             status: result.status,
             attack: result.attack,
+            error: result.error,
         };
     });
     self.postMessage(results);

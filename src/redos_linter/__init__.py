@@ -44,9 +44,10 @@ class RegexInfo(TypedDict):
 
 
 class RegexExtractor(ast.NodeVisitor):
-    def __init__(self, lines: list[str]) -> None:
+    def __init__(self, lines: list[str], filename: str = "<unknown>") -> None:
         self.regexes: list[RegexInfo] = []
         self.lines = lines
+        self.filename = filename
         self.regex_modules = {"re", "regex"}
         self.regex_functions: dict[str, str] = {}
 
@@ -82,14 +83,42 @@ class RegexExtractor(ast.NodeVisitor):
         if isinstance(node, ast.Constant):
             self._record_regex(node, explicit=True)
         elif isinstance(node, ast.JoinedStr):
-            # Preserve checks of static fragments when the string is explicitly a regex.
+            dynamic = any(isinstance(value, ast.FormattedValue) for value in node.values)
+            if dynamic:
+                sys.stderr.write(
+                    f"Warning: {self.filename}:{node.lineno}:{node.col_offset}: "
+                    "dynamic regex is only partially analyzed; runtime pattern safety is unknown\n"
+                )
             for value in node.values:
                 if isinstance(value, ast.Constant):
+                    if dynamic and self._is_incomplete_fragment(value):
+                        continue
                     self._record_regex(value, explicit=True)
                 elif isinstance(value, ast.FormattedValue):
-                    self.visit(value.value)
+                    self.visit(value)
         else:
             self.visit(node)
+
+    @staticmethod
+    def _is_incomplete_fragment(node: ast.Constant) -> bool:
+        if not isinstance(node.value, str):
+            return False
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            try:
+                re.compile(node.value)
+            except re.error as error:
+                return error.msg.startswith(
+                    (
+                        "unterminated character set",
+                        "missing ), unterminated subpattern",
+                        "unbalanced parenthesis",
+                        "bad escape (end of pattern)",
+                    )
+                )
+            except OverflowError:
+                return False
+        return False
 
     def _regex_function(self, node: ast.expr) -> str | None:
         if isinstance(node, ast.Name):
@@ -110,7 +139,7 @@ class RegexExtractor(ast.NodeVisitor):
             # Fragments do not represent the complete dynamically constructed pattern.
             for value in node.values:
                 if isinstance(value, ast.FormattedValue):
-                    self.visit(value.value)
+                    self.visit(value)
 
     def visit_Compare(self, node: ast.Compare) -> None:
         operands = [node.left, *node.comparators]
@@ -185,7 +214,7 @@ def extract_regexes_from_file(filepath: str) -> list[RegexInfoWithContext]:
         code = f.read()
     tree = ast.parse(code, filename=filepath)
     lines = code.splitlines()
-    extractor = RegexExtractor(lines)
+    extractor = RegexExtractor(lines, filename=filepath)
     extractor.visit(tree)
 
     return [
@@ -250,7 +279,16 @@ def collect_all_regexes(files: list[str]) -> list[RegexInfoWithFile]:
     return regexes_with_paths
 
 
-class RecheckResult(TypedDict):
+class CheckerError(TypedDict, total=False):
+    kind: str
+    message: str
+
+
+class CheckerDetails(TypedDict, total=False):
+    error: CheckerError
+
+
+class RecheckResult(CheckerDetails):
     status: str
     sourceLines: list[str]
     regex: str
@@ -320,10 +358,11 @@ def main() -> int:  # noqa: PLR0912,PLR0915,C901
     regexes_with_paths = collect_all_regexes(files_to_check)
 
     if not regexes_with_paths:
+        empty_msg = "No vulnerabilities found in analyzed static patterns.\n"
         if use_colors():
-            sys.stdout.write(f"{Colors.GREEN}No vulnerable regexes found.{Colors.END}\n")
+            sys.stdout.write(f"{Colors.GREEN}{empty_msg}{Colors.END}")
         else:
-            sys.stdout.write("No vulnerable regexes found.\n")
+            sys.stdout.write(empty_msg)
         return 0
 
     results = check_regexes_with_deno(regexes_with_paths)
@@ -399,12 +438,23 @@ def main() -> int:  # noqa: PLR0912,PLR0915,C901
                     sys.stdout.write(f"   {line}\n")
                 sys.stdout.write("\n")
 
-    if any(result["status"] not in {"safe", "vulnerable"} for result in results):
+    unclassified_results = [result for result in results if result["status"] not in {"safe", "vulnerable"}]
+    if unclassified_results:
+        for result in unclassified_results:
+            location = f"{result.get('filePath', 'unknown')}:{result.get('line', '?')}:{result.get('col', '?')}"
+            error = result.get("error") or {}
+            reason = error.get("kind", result["status"])
+            message = error.get("message", "no further details")
+            sys.stderr.write(f"UNCLASSIFIED: {location}\n   Pattern: {result.get('regex', '')!r}\n")
+            sys.stderr.write(f"   Reason: {reason}: {message}\n")
         sys.stderr.write("Error: Checker could not classify every regex\n")
         return 2
 
     if vulnerable_count == 0:
-        safe_msg = f"All {total_regexes} regex{'es' if total_regexes != 1 else ''} appear safe from ReDoS attacks.\n"
+        safe_msg = (
+            f"All {total_regexes} analyzed static regex{'es' if total_regexes != 1 else ''} "
+            "appear safe from ReDoS attacks.\n"
+        )
         if use_colors():
             sys.stdout.write(f"{Colors.GREEN}{safe_msg}{Colors.END}")
         else:

@@ -26,7 +26,7 @@ class TestMainFunction:
         mock_stdout.write.assert_called()
         calls = [str(call) for call in mock_stdout.write.call_args_list]
         output = "".join(calls)
-        assert "No regexes found" in output or "No vulnerable regexes found" in output
+        assert "No regexes found" in output or "No vulnerabilities found in analyzed static patterns" in output
 
     def test_single_vulnerable_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test with a single file containing a vulnerable regex."""

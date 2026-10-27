@@ -133,4 +133,6 @@ safe = re.compile(r"^[a-zA-Z0-9_]+$")  # redos-linter: ignore
         output = "".join(calls)
 
         # Should report no vulnerable regexes
-        assert "No vulnerable regexes found" in output or ("All" in output and "appear safe" in output)
+        assert "No vulnerabilities found in analyzed static patterns" in output or (
+            "All" in output and "appear safe" in output
+        )
